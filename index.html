@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>스피또 1000</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:    #1a1a1a;
+      --sub:    #6b7280;
+      --line:   #ececec;
+      --soft:   #fafafa;
+      --bg:     #f5f5f7;
+    }
+
+    body {
+      font-family: "Noto Sans KR", sans-serif;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 레이아웃 */
+    .page {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 3rem;
+      gap: 1.25rem;
+    }
+
+    /* HUD */
+    .hud {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .hud-balance { font-size: 0.8rem; color: var(--sub); }
+    .hud-balance strong {
+      display: block;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-top: 2px;
+    }
+    .hud-audio {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: var(--sub);
+      cursor: pointer;
+      user-select: none;
+    }
+    .hud-audio input { accent-color: var(--ink); }
+
+    /* 티켓 */
+    .ticket-wrap { width: 100%; max-width: 400px; }
+    .ticket {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .ticket-head {
+      padding: 22px 22px 18px;
+      text-align: center;
+    }
+    .ticket-head-name {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    .ticket-head-prize {
+      font-size: 0.72rem;
+      color: var(--sub);
+      margin-top: 4px;
+    }
+
+    .ticket-divider {
+      height: 1px;
+      background: var(--line);
+    }
+
+    /* 본체 */
+    .ticket-body {
+      padding: 20px;
+      display: flex;
+      gap: 12px;
+      position: relative;
+    }
+
+    .lucky-panel {
+      width: 88px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--soft);
+      border-radius: 12px;
+      padding: 14px 8px;
+    }
+    .lucky-label {
+      font-size: 0.62rem;
+      font-weight: 500;
+      color: var(--sub);
+    }
+    .lucky-number {
+      font-size: 2.8rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .lucky-korean {
+      font-size: 0.72rem;
+      color: var(--sub);
+    }
+
+    .cells-panel {
+      flex: 1;
+      min-width: 0;
+      min-height: 160px;
+    }
+    .cells-label {
+      font-size: 0.62rem;
+      font-weight: 500;
+      color: var(--sub);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .cells-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .cell {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 8px 4px;
+      text-align: center;
+    }
+    .cell-num {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+    }
+    .cell-ko {
+      font-size: 0.55rem;
+      color: var(--sub);
+      margin-top: 2px;
+    }
+    .cell-prize-amount {
+      font-size: 0.55rem;
+      font-weight: 500;
+      color: var(--sub);
+      margin-top: 4px;
+    }
+
+    .ticket-foot {
+      padding: 12px 22px;
+      border-top: 1px solid var(--line);
+      text-align: center;
+    }
+    .ticket-foot-serial {
+      font-family: monospace;
+      font-size: 0.7rem;
+      color: #aaa;
+      letter-spacing: 0.05em;
+    }
+
+    /* 스크래치 캔버스 */
+    .scratch-layer {
+      position: absolute;
+      inset: 0;
+      touch-action: none;
+      border-radius: inherit;
+    }
+
+    /* 커서 */
+    #scratchCursor {
+      position: fixed;
+      pointer-events: none;
+      z-index: 999;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,0.35);
+      background: rgba(0,0,0,0.04);
+      transform: translate(-50%, -50%);
+      display: none;
+      transition: width 0.08s ease, height 0.08s ease;
+    }
+
+    /* 컨트롤 */
+    .controls {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .size-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .size-label {
+      font-size: 0.75rem;
+      color: var(--sub);
+      flex-shrink: 0;
+      width: 36px;
+    }
+    .size-slider {
+      flex: 1;
+      accent-color: var(--ink);
+      cursor: pointer;
+    }
+    .size-val {
+      font-size: 0.75rem;
+      color: var(--ink);
+      width: 28px;
+      text-align: right;
+    }
+    .action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .btn-reveal {
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-reveal:hover { background: var(--soft); }
+    .btn-again {
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-again:disabled { opacity: 0.3; pointer-events: none; }
+    .ctrl-hint {
+      font-size: 0.7rem;
+      color: var(--sub);
+      text-align: center;
+    }
+
+    /* 모달 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.35);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      animation: popIn 0.25s ease;
+    }
+    .modal-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .modal-body {
+      font-size: 0.95rem;
+      color: var(--sub);
+      margin-bottom: 20px;
+      min-height: 2.5rem;
+    }
+    .modal-body .amount {
+      display: block;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .modal-body .sub {
+      font-size: 0.78rem;
+      color: var(--sub);
+    }
+    .modal-close-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* 구매 모달 */
+    .buy-modal-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      animation: popIn 0.25s ease;
+    }
+    .buy-modal-sub {
+      font-size: 0.72rem;
+      color: var(--sub);
+      margin-bottom: 6px;
+    }
+    .buy-modal-name {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .buy-modal-price {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 8px 0 6px;
+    }
+    .buy-modal-desc {
+      font-size: 0.8rem;
+      color: var(--sub);
+      margin-bottom: 20px;
+    }
+    .buy-modal-balance {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .buy-modal-balance-label { font-size: 0.8rem; color: var(--sub); }
+    .buy-modal-balance-val { font-size: 0.95rem; font-weight: 700; color: var(--ink); }
+    .btn-buy {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-buy:disabled { opacity: 0.3; pointer-events: none; }
+    .buy-hint {
+      font-size: 0.72rem;
+      color: #c0392b;
+      margin-top: 10px;
+    }
+
+    /* FX */
+    #fxLayer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 60;
+      overflow: hidden;
+    }
+    .scratch-particle {
+      position: absolute;
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+    .scratch-particle.metal {
+      width: 3px; height: 3px;
+      border-radius: 50%;
+      background: #c8c8c8;
+    }
+    .confetti-piece {
+      position: absolute;
+      width: 6px; height: 6px;
+      border-radius: 1px;
+      animation: confettiFall 1.4s ease-out forwards;
+    }
+
+    /* 애니메이션 */
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.96) translateY(6px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes confettiFall {
+      0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(130px) rotate(400deg); opacity: 0; }
+    }
+    @keyframes ticketWinPulse {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.012); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-4px); }
+      75%      { transform: translateX(4px); }
+    }
+    .ticket-wrap.win-bounce { animation: ticketWinPulse 0.7s ease-out; }
+    .lose-shake { animation: shake 0.4s ease-in-out; }
+  </style>
+</head>
+<body>
+
+<div id="fxLayer" aria-hidden="true"></div>
+<div id="scratchCursor" aria-hidden="true"></div>
+
+<div class="page">
+
+  <!-- HUD -->
+  <header class="hud">
+    <div class="hud-balance">
+      <span>잔액</span>
+      <strong id="hudBalance">10,000원</strong>
+    </div>
+    <label class="hud-audio">
+      <input type="checkbox" id="audioToggle" checked />
+      소리
+    </label>
+  </header>
+
+  <!-- 복권 -->
+  <div id="ticketWrap" class="ticket-wrap">
+    <div class="ticket">
+
+      <!-- 헤더 -->
+      <div class="ticket-head">
+        <div class="ticket-head-name">스피또 1000</div>
+        <div class="ticket-head-prize">최고 당첨금 5억원</div>
+      </div>
+
+      <div class="ticket-divider"></div>
+
+      <!-- 게임 본체 -->
+      <div class="ticket-body">
+
+        <!-- 행운숫자 -->
+        <div class="lucky-panel" style="position:relative;">
+          <span class="lucky-label">행운숫자</span>
+          <span id="luckyDisplay" class="lucky-number">?</span>
+          <span id="luckyKorean" class="lucky-korean">?</span>
+          <canvas id="canvasLucky" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;z-index:20;cursor:crosshair;border-radius:12px;" aria-label="행운숫자 스크래치"></canvas>
+        </div>
+
+        <!-- 나의 숫자 -->
+        <div class="cells-panel" style="position:relative;">
+          <div class="cells-label">나의 숫자</div>
+          <div id="cellsGrid" class="cells-grid"></div>
+          <canvas id="canvasGame" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;z-index:20;cursor:crosshair;border-radius:8px;" aria-label="나의숫자 스크래치"></canvas>
+        </div>
+
+      </div>
+
+      <!-- 푸터 -->
+      <div class="ticket-foot">
+        <div id="serialNo" class="ticket-foot-serial">00000-0000-000</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 컨트롤 -->
+  <div class="controls">
+    <div class="size-row">
+      <span class="size-label">크기</span>
+      <input type="range" id="brushSize" min="16" max="80" value="38" class="size-slider" />
+      <span id="brushVal" class="size-val">38</span>
+    </div>
+    <div class="action-row">
+      <button id="btnReveal" class="btn-reveal">전부 벗기기</button>
+      <button id="btnAgain" class="btn-again" disabled>다시 긁기</button>
+    </div>
+    <div class="ctrl-hint">게임 영역을 70% 이상 긁으면 자동으로 결과가 나옵니다</div>
+  </div>
+
+</div>
+
+<!-- 구매 모달 -->
+<div id="startOverlay" class="modal-backdrop">
+  <div class="buy-modal-card">
+    <div class="buy-modal-sub">즉석식복권</div>
+    <div class="buy-modal-name">스피또 1000</div>
+    <div class="buy-modal-price">₩1,000</div>
+    <div class="buy-modal-desc">행운숫자와 나의 숫자가 같으면 당첨</div>
+    <div class="buy-modal-balance">
+      <span class="buy-modal-balance-label">보유 잔액</span>
+      <span id="startBalance" class="buy-modal-balance-val">10,000원</span>
+    </div>
+    <button id="btnBuy" class="btn-buy">티켓 구매</button>
+    <div id="buyHint" class="buy-hint" style="display:none;">잔액이 부족합니다</div>
+  </div>
+</div>
+
+<!-- 결과 모달 -->
+<div id="resultModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card">
+    <div id="confettiHost" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:16px;"></div>
+    <div id="resultTitle" class="modal-title">결과</div>
+    <div id="resultBody" class="modal-body"></div>
+    <button id="btnModalClose" class="modal-close-btn">확인</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const KO = ['','일','이','삼','사','오','육','칠','팔','구','십'];
+
+  const state = {
+    balance: 10000,
+    phase: 'idle',
+    ticket: null,
+    revealed: false,
+    scratching: false,
+    lastProgressCheck: 0,
+    brush: 38,
+    audio: true,
+    _lastTs: 0, _lastCX: 0, _lastCY: 0,
+  };
+
+  const el = {
+    startOverlay:  document.getElementById('startOverlay'),
+    startBalance:  document.getElementById('startBalance'),
+    hudBalance:    document.getElementById('hudBalance'),
+    btnBuy:        document.getElementById('btnBuy'),
+    buyHint:       document.getElementById('buyHint'),
+    canvasLucky:   document.getElementById('canvasLucky'),
+    canvasGame:    document.getElementById('canvasGame'),
+    ticketWrap:    document.getElementById('ticketWrap'),
+    fxLayer:       document.getElementById('fxLayer'),
+    luckyDisplay:  document.getElementById('luckyDisplay'),
+    luckyKorean:   document.getElementById('luckyKorean'),
+    cellsGrid:     document.getElementById('cellsGrid'),
+    serialNo:      document.getElementById('serialNo'),
+    btnReveal:     document.getElementById('btnReveal'),
+    btnAgain:      document.getElementById('btnAgain'),
+    resultModal:   document.getElementById('resultModal'),
+    resultTitle:   document.getElementById('resultTitle'),
+    resultBody:    document.getElementById('resultBody'),
+    btnModalClose: document.getElementById('btnModalClose'),
+    confettiHost:  document.getElementById('confettiHost'),
+    audioToggle:   document.getElementById('audioToggle'),
+    brushSize:     document.getElementById('brushSize'),
+    brushVal:      document.getElementById('brushVal'),
+    scratchCursor: document.getElementById('scratchCursor'),
+  };
+
+  /* 오디오 */
+  let audioCtx = null;
+  function ctx() {
+    if (!state.audio) return null;
+    if (!audioCtx) try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return null; }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  let lastScratchSnd = 0;
+  function playScratch(speed) {
+    const c = ctx(); if (!c) return;
+    const now = performance.now();
+    if (now - lastScratchSnd < 35) return;
+    lastScratchSnd = now;
+    const dur = 0.035;
+    const vol = Math.min(0.18, 0.06 + speed * 0.14);
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2200;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 7000;
+    const g  = c.createGain(); g.gain.value = vol;
+    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(c.destination);
+    src.start(); src.stop(c.currentTime + dur);
+  }
+
+  function playWin() {
+    const c = ctx(); if (!c) return;
+    const t = c.currentTime;
+    [[523.25, 0], [659.25, 0.1], [783.99, 0.2], [1046.5, 0.32]].forEach(([freq, delay]) => {
+      const osc = c.createOscillator();
+      const g   = c.createGain();
+      const flt = c.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 3000;
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, t + delay);
+      g.gain.linearRampToValueAtTime(0.12, t + delay + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.5);
+      osc.connect(flt); flt.connect(g); g.connect(c.destination);
+      osc.start(t + delay); osc.stop(t + delay + 0.55);
+    });
+  }
+
+  function playLose() {
+    const c = ctx(); if (!c) return;
+    const t = c.currentTime;
+    const osc = c.createOscillator();
+    const g   = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, t);
+    osc.frequency.linearRampToValueAtTime(160, t + 0.4);
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t); osc.stop(t + 0.5);
+  }
+
+  /* 파티클 */
+  function spawnParticles(cx, cy, speed) {
+    if (!el.fxLayer) return;
+    const n = Math.min(8, 1 + Math.floor(speed * 60));
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('div');
+      p.className = 'scratch-particle metal';
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 12 + speed * 200 + Math.random() * 20;
+      p.style.cssText = `left:${cx}px;top:${cy}px;`;
+      p.style.setProperty('--tx', Math.cos(ang)*dist+'px');
+      p.style.setProperty('--ty', Math.sin(ang)*dist+'px');
+      const dur = 0.28 + Math.random()*0.18;
+      p.style.animation = `particleFly ${dur}s ease-out forwards`;
+      el.fxLayer.appendChild(p);
+      setTimeout(() => p.remove(), 600);
+    }
+  }
+
+  /* 유틸 */
+  function fmt(n) { return n.toLocaleString('ko-KR') + '원'; }
+  function serial() {
+    return [5,4,3].map(l => String(Math.floor(Math.random()*Math.pow(10,l))).padStart(l,'0')).join('-');
+  }
+
+  const DECOYS = [
+    {label:'일만원', amount:10000},
+    {label:'오만원', amount:50000},
+    {label:'십만원', amount:100000},
+    {label:'오십만원', amount:500000},
+    {label:'백만원', amount:1000000},
+  ];
+  function decoy() { return DECOYS[Math.floor(Math.random()*DECOYS.length)]; }
+
+  function matchPrize() {
+    const r = Math.random();
+    if (r < 0.00008)  return {label:'오억원',   amount:500000000};
+    if (r < 0.00035)  return {label:'오천만원', amount:50000000};
+    if (r < 0.002)    return {label:'천만원',   amount:10000000};
+    if (r < 0.02)     return {label:'백만원',   amount:1000000};
+    if (r < 0.12)     return {label:'십만원',   amount:100000};
+    if (r < 0.45)     return {label:'오만원',   amount:50000};
+    return {label:'일만원', amount:10000};
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length-1; i > 0; i--) {
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function generateTicket() {
+    const lucky = Math.floor(Math.random()*10)+1;
+    const pool  = shuffle([1,2,3,4,5,6,7,8,9,10]);
+    const mines = pool.slice(0,6);
+    const cells = mines.map(n => {
+      const match = n === lucky;
+      return { num:n, ko:KO[n], match, prize: match ? matchPrize() : decoy() };
+    });
+    const winAmount = cells.filter(c=>c.match).reduce((m,c)=>Math.max(m,c.prize.amount),0);
+    return { lucky, ko:KO[lucky], cells, winAmount, isWin:winAmount>0, serial:serial() };
+  }
+
+  function updateBalance() {
+    const t = fmt(state.balance);
+    el.startBalance.textContent = t;
+    el.hudBalance.textContent   = t;
+    el.btnBuy.disabled = state.balance < 1000;
+  }
+
+  function renderTicket() {
+    const t = state.ticket;
+    el.luckyDisplay.textContent = String(t.lucky);
+    el.luckyKorean.textContent  = t.ko;
+    el.serialNo.textContent     = t.serial;
+    el.cellsGrid.innerHTML = '';
+    t.cells.forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'cell';
+      d.innerHTML = `
+        <div class="cell-num">${c.num}</div>
+        <div class="cell-ko">${c.ko}</div>
+        <div class="cell-prize-amount">${c.prize.label}</div>`;
+      el.cellsGrid.appendChild(d);
+    });
+  }
+
+  /* 스크래치 코팅 */
+  function drawCoating(ctx2d, w, h) {
+    const g = ctx2d.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0,   '#d8d8d6');
+    g.addColorStop(0.4, '#c0c0be');
+    g.addColorStop(0.6, '#b4b4b2');
+    g.addColorStop(1,   '#cacac8');
+    ctx2d.save();
+    ctx2d.fillStyle = g;
+    ctx2d.fillRect(0, 0, w, h);
+    const img = ctx2d.getImageData(0,0,w,h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i+=4) {
+      const n = (Math.random()-.5)*18;
+      d[i]   = Math.min(255,Math.max(0,d[i]+n));
+      d[i+1] = Math.min(255,Math.max(0,d[i+1]+n));
+      d[i+2] = Math.min(255,Math.max(0,d[i+2]+n));
+    }
+    ctx2d.putImageData(img,0,0);
+    ctx2d.restore();
+  }
+
+  const luckyMeta = {ctx:null,w:0,h:0,dpr:1};
+  const gameMeta  = {ctx:null,w:0,h:0,dpr:1};
+
+  function setupCanvas(canvas, panelEl, meta) {
+    const dpr  = Math.min(window.devicePixelRatio||1, 2);
+    const rect = panelEl.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width);
+    const cssH = Math.max(1, rect.height);
+    const w = Math.floor(cssW * dpr);
+    const h = Math.floor(cssH * dpr);
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width  = w;
+    canvas.height = h;
+    const c = canvas.getContext('2d', {alpha:true});
+    drawCoating(c, w, h);
+    Object.assign(meta, {ctx:c, w, h, dpr});
+  }
+
+  function resizeCanvases() {
+    setupCanvas(el.canvasLucky, document.querySelector('.lucky-panel'), luckyMeta);
+    setupCanvas(el.canvasGame,  document.querySelector('.cells-panel'), gameMeta);
+  }
+
+  function canvasPos(canvas, cx, cy) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: ((cx-r.left)/r.width)  * canvas.width,
+      y: ((cy-r.top) /r.height) * canvas.height,
+    };
+  }
+
+  function scratchLine(canvas, c, x1, y1, x2, y2, w) {
+    c.save();
+    c.globalCompositeOperation = 'destination-out';
+    c.lineWidth  = w * (canvas.width / canvas.getBoundingClientRect().width);
+    c.lineCap    = 'round';
+    c.lineJoin   = 'round';
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+    c.restore();
+  }
+
+  function clearedRatio() {
+    const {ctx,w,h} = gameMeta;
+    if (!ctx||w<8||h<8) return 0;
+    const step=6; let total=0, cleared=0;
+    try {
+      const img=ctx.getImageData(0,0,w,h), d=img.data;
+      for (let y=0;y<h;y+=step) for (let x=0;x<w;x+=step) {
+        total++;
+        if (d[(y*w+x)*4+3]<48) cleared++;
+      }
+    } catch(e){ return 0; }
+    return total ? cleared/total : 0;
+  }
+
+  function clearMeta(meta) {
+    if (!meta.ctx) return;
+    meta.ctx.save();
+    meta.ctx.globalCompositeOperation='destination-out';
+    meta.ctx.fillStyle='rgba(0,0,0,1)';
+    meta.ctx.fillRect(0,0,meta.w,meta.h);
+    meta.ctx.restore();
+  }
+  function revealAll() { clearMeta(luckyMeta); clearMeta(gameMeta); }
+
+  /* 결과 */
+  function showResult() {
+    if (state.revealed) return;
+    state.revealed = true;
+    el.scratchCursor.style.display = 'none';
+    setCursorDefault();
+    const t = state.ticket;
+    if (t.isWin) { state.balance += t.winAmount; updateBalance(); }
+
+    el.confettiHost.innerHTML = '';
+
+    if (t.isWin) {
+      el.resultTitle.textContent = '당첨!';
+      el.resultTitle.className   = 'modal-title';
+      el.resultBody.innerHTML    = `<span class="amount">${fmt(t.winAmount)}</span><span class="sub">일치 칸 최고 상금 지급</span>`;
+
+      el.ticketWrap.classList.remove('win-bounce');
+      void el.ticketWrap.offsetWidth;
+      el.ticketWrap.classList.add('win-bounce');
+      setTimeout(()=>el.ticketWrap.classList.remove('win-bounce'),900);
+
+      spawnConfetti(); playWin();
+    } else {
+      el.resultTitle.textContent = '아쉽네요';
+      el.resultTitle.className   = 'modal-title lose-shake';
+      el.resultBody.textContent  = '꽝! 다음 기회에';
+      playLose();
+    }
+
+    el.resultModal.style.display = 'flex';
+    el.btnAgain.disabled = (state.balance < 1000);
+  }
+
+  function spawnConfetti() {
+    const colors = ['#1a1a1a','#888','#ccc','#444','#666'];
+    for (let i=0;i<24;i++) {
+      const p=document.createElement('div');
+      p.className='confetti-piece';
+      p.style.left=`${15+Math.random()*70}%`;
+      p.style.top=`${5+Math.random()*25}%`;
+      p.style.background=colors[i%colors.length];
+      p.style.animationDelay=`${Math.random()*0.25}s`;
+      el.confettiHost.appendChild(p);
+    }
+  }
+
+  /* 스크래치 바인딩 */
+  let lastX=0, lastY=0, activeCanvas=null;
+
+  function bindScratch(canvas, meta) {
+    function down(e) {
+      if (state.phase!=='playing'||state.revealed) return;
+      e.preventDefault();
+      state.scratching=true; activeCanvas=canvas;
+      state._lastTs=performance.now(); state._lastCX=e.clientX; state._lastCY=e.clientY;
+      const p=canvasPos(canvas,e.clientX,e.clientY); lastX=p.x; lastY=p.y;
+      canvas.setPointerCapture(e.pointerId);
+    }
+    function move(e) {
+      if (!state.scratching||state.revealed||activeCanvas!==canvas) return;
+      if ((e.buttons&1)===0&&e.pointerType!=='touch') return;
+      e.preventDefault();
+      const now=performance.now();
+      const dt=Math.max(8,now-(state._lastTs||now));
+      const speed=Math.hypot(e.clientX-state._lastCX,e.clientY-state._lastCY)/dt;
+      state._lastTs=now; state._lastCX=e.clientX; state._lastCY=e.clientY;
+      const p=canvasPos(canvas,e.clientX,e.clientY);
+      scratchLine(canvas,meta.ctx,lastX,lastY,p.x,p.y,state.brush);
+      spawnParticles(e.clientX,e.clientY,speed);
+      lastX=p.x; lastY=p.y;
+      playScratch(speed);
+      if (canvas===el.canvasGame && now-state.lastProgressCheck>200) {
+        state.lastProgressCheck=now;
+        if (clearedRatio()>=0.7) { revealAll(); showResult(); }
+      }
+    }
+    function up(e) {
+      state.scratching=false; activeCanvas=null;
+      try { canvas.releasePointerCapture(e.pointerId); } catch(_){}
+    }
+    canvas.addEventListener('pointerdown',  down,  {passive:false});
+    canvas.addEventListener('pointermove',  move,  {passive:false});
+    canvas.addEventListener('pointerup',    up);
+    canvas.addEventListener('pointercancel',up);
+    canvas.addEventListener('pointerleave', e=>{if(activeCanvas===canvas)up(e);});
+  }
+
+  function startRound() {
+    state.balance  -= 1000;
+    state.ticket    = generateTicket();
+    state.phase     = 'playing';
+    state.revealed  = false;
+    state.lastProgressCheck = 0;
+    setCursorNone();
+    updateBalance();
+    renderTicket();
+    el.btnAgain.disabled = (state.balance < 1000);
+    requestAnimationFrame(() => requestAnimationFrame(resizeCanvases));
+  }
+
+  el.btnBuy.addEventListener('click', () => {
+    el.buyHint.style.display = 'none';
+    if (state.balance < 1000) { el.buyHint.style.display='block'; return; }
+    el.startOverlay.style.display = 'none';
+    startRound();
+  });
+
+  el.audioToggle.addEventListener('change', () => { state.audio = el.audioToggle.checked; });
+
+  el.btnReveal.addEventListener('click', () => {
+    if (state.phase!=='playing'||state.revealed) return;
+    revealAll(); showResult();
+  });
+
+  el.btnAgain.addEventListener('click', () => {
+    el.resultModal.style.display = 'none';
+    if (state.balance < 1000) {
+      el.startOverlay.style.display = 'flex';
+      state.phase = 'idle';
+      return;
+    }
+    startRound();
+  });
+
+  el.btnModalClose.addEventListener('click', () => {
+    el.resultModal.style.display = 'none';
+  });
+
+  window.addEventListener('resize', () => {
+    if (state.phase==='playing'&&!state.revealed) resizeCanvases();
+  });
+
+  bindScratch(el.canvasLucky, luckyMeta);
+  bindScratch(el.canvasGame,  gameMeta);
+
+  /* 커서 */
+  const scratchCanvases = [el.canvasLucky, el.canvasGame];
+  const ticketBody = document.querySelector('.ticket-body');
+
+  function applyCursorSize() {
+    const d = state.brush + 'px';
+    el.scratchCursor.style.width  = d;
+    el.scratchCursor.style.height = d;
+  }
+
+  function setCursorNone() {
+    ticketBody.style.cursor = 'none';
+    scratchCanvases.forEach(c => { c.style.cursor = 'none'; });
+  }
+  function setCursorDefault() {
+    ticketBody.style.cursor = '';
+    scratchCanvases.forEach(c => { c.style.cursor = 'default'; });
+  }
+
+  ticketBody.addEventListener('pointerenter', () => {
+    if (state.phase !== 'playing' || state.revealed) return;
+    applyCursorSize();
+    el.scratchCursor.style.display = 'block';
+  }, { passive: true });
+
+  ticketBody.addEventListener('pointerleave', () => {
+    el.scratchCursor.style.display = 'none';
+  }, { passive: true });
+
+  ticketBody.addEventListener('pointermove', e => {
+    if (state.phase !== 'playing' || state.revealed) return;
+    el.scratchCursor.style.left = e.clientX + 'px';
+    el.scratchCursor.style.top  = e.clientY + 'px';
+  }, { passive: true });
+
+  el.brushSize.addEventListener('input', () => {
+    state.brush = Number(el.brushSize.value);
+    el.brushVal.textContent = el.brushSize.value;
+    applyCursorSize();
+  });
+  el.brushVal.textContent = el.brushSize.value;
+
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = `@keyframes particleFly {
+    from { opacity:1; }
+    to { transform:translate(var(--tx),var(--ty)); opacity:0; }
+  }`;
+  document.head.appendChild(styleSheet);
+
+  updateBalance();
+})();
+</script>
+</body>
+</html>
