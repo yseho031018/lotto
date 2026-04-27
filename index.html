@@ -159,6 +159,81 @@
       gap: 8px;
     }
 
+    /* 일일 한도 섹션 (통계 모달) */
+    .daily-section {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .daily-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+    }
+    .daily-row + .daily-row { margin-top: 4px; }
+    .daily-label { color: var(--sub); }
+    .daily-val   { font-weight: 700; color: var(--ink); }
+    .daily-val.over { color: #c0392b; }
+    .link-btn {
+      background: none;
+      border: none;
+      padding: 0 0 0 8px;
+      font-size: 0.74rem;
+      color: var(--sub);
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+    }
+    .link-btn:hover { color: var(--ink); }
+    .daily-bar {
+      margin-top: 8px;
+      height: 4px;
+      background: #ececec;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .daily-bar-fill {
+      height: 100%;
+      background: var(--ink);
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+    .daily-bar-fill.over { background: #c0392b; }
+
+    /* 충전 모달 */
+    .recharge-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 6px 0 18px;
+    }
+    .recharge-btn {
+      padding: 14px 10px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    .recharge-btn:hover { background: var(--soft); }
+    .recharge-balance {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      color: var(--sub);
+      margin-bottom: 14px;
+    }
+    .recharge-balance strong { font-size: 0.95rem; color: var(--ink); }
+
     /* 티켓 */
     .ticket-wrap { width: 100%; max-width: 400px; }
     .ticket {
@@ -552,6 +627,7 @@
       <strong id="hudBalance">10,000원</strong>
     </div>
     <div class="hud-right">
+      <button id="btnRecharge" class="hud-stats-btn" type="button">충전</button>
       <button id="btnStats" class="hud-stats-btn" type="button">통계</button>
       <label class="hud-audio">
         <input type="checkbox" id="audioToggle" checked />
@@ -632,10 +708,44 @@
   </div>
 </div>
 
+<!-- 충전 모달 -->
+<div id="rechargeModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-title">잔액 충전</div>
+    <div class="recharge-balance">
+      <span>현재 잔액</span>
+      <strong id="rechargeBalance">0원</strong>
+    </div>
+    <div class="recharge-grid">
+      <button class="recharge-btn" data-amt="5000"   type="button">+ ₩5,000</button>
+      <button class="recharge-btn" data-amt="10000"  type="button">+ ₩10,000</button>
+      <button class="recharge-btn" data-amt="50000"  type="button">+ ₩50,000</button>
+      <button class="recharge-btn" data-amt="100000" type="button">+ ₩100,000</button>
+    </div>
+    <button id="btnRechargeClose" class="modal-close-btn" type="button">닫기</button>
+  </div>
+</div>
+
 <!-- 통계 모달 -->
 <div id="statsModal" class="modal-backdrop" style="display:none;">
   <div class="stats-card">
     <div class="modal-title">통계</div>
+    <div class="daily-section">
+      <div class="daily-row">
+        <span class="daily-label">오늘 사용액</span>
+        <span id="dailySpentVal" class="daily-val">0원</span>
+      </div>
+      <div class="daily-row">
+        <span class="daily-label">일일 한도</span>
+        <span class="daily-val">
+          <span id="dailyLimitVal">없음</span>
+          <button id="btnEditLimit" class="link-btn" type="button">변경</button>
+        </span>
+      </div>
+      <div id="dailyBar" class="daily-bar" style="display:none;">
+        <div id="dailyBarFill" class="daily-bar-fill" style="width:0%;"></div>
+      </div>
+    </div>
     <div class="stats-grid">
       <div class="stat"><div class="stat-label">총 구매</div><div id="statCount" class="stat-val">0</div></div>
       <div class="stat"><div class="stat-label">당첨률</div><div id="statRate" class="stat-val">0%</div></div>
@@ -682,8 +792,20 @@
     brush: 38,
     audio: true,
     history: [],
+    dailyLimit: null,
+    dailySpent: { date: '', amount: 0 },
     _lastTs: 0, _lastCX: 0, _lastCY: 0,
   };
+
+  function todayStr() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function ensureToday() {
+    const t = todayStr();
+    if (state.dailySpent.date !== t) state.dailySpent = { date: t, amount: 0 };
+  }
 
   function loadState() {
     try {
@@ -692,15 +814,31 @@
       const data = JSON.parse(raw);
       if (typeof data.balance === 'number' && isFinite(data.balance)) state.balance = data.balance;
       if (Array.isArray(data.history)) state.history = data.history.slice(0, HISTORY_MAX);
+      if (typeof data.dailyLimit === 'number' && data.dailyLimit > 0) state.dailyLimit = data.dailyLimit;
+      if (data.dailySpent && typeof data.dailySpent.amount === 'number') {
+        state.dailySpent = { date: String(data.dailySpent.date||''), amount: data.dailySpent.amount };
+      }
     } catch (e) {}
+    ensureToday();
   }
   function saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         balance: state.balance,
         history: state.history,
+        dailyLimit: state.dailyLimit,
+        dailySpent: state.dailySpent,
       }));
     } catch (e) {}
+  }
+
+  function canBuy() {
+    if (state.balance < TICKET_PRICE) return { ok:false, reason:'low_balance', msg:'잔액이 부족합니다' };
+    ensureToday();
+    if (state.dailyLimit && state.dailySpent.amount + TICKET_PRICE > state.dailyLimit) {
+      return { ok:false, reason:'daily_limit', msg:'오늘 한도에 도달했습니다' };
+    }
+    return { ok:true };
   }
 
   const el = {
@@ -739,6 +877,15 @@
     statWin:       document.getElementById('statWin'),
     statProfit:    document.getElementById('statProfit'),
     statMax:       document.getElementById('statMax'),
+    btnRecharge:       document.getElementById('btnRecharge'),
+    rechargeModal:     document.getElementById('rechargeModal'),
+    rechargeBalance:   document.getElementById('rechargeBalance'),
+    btnRechargeClose:  document.getElementById('btnRechargeClose'),
+    dailySpentVal:     document.getElementById('dailySpentVal'),
+    dailyLimitVal:     document.getElementById('dailyLimitVal'),
+    btnEditLimit:      document.getElementById('btnEditLimit'),
+    dailyBar:          document.getElementById('dailyBar'),
+    dailyBarFill:      document.getElementById('dailyBarFill'),
   };
 
   /* 오디오 */
@@ -869,9 +1016,15 @@
     const t = fmt(state.balance);
     el.startBalance.textContent = t;
     el.hudBalance.textContent   = t;
-    const lowBalance = state.balance < TICKET_PRICE;
-    el.btnBuy.disabled = lowBalance;
-    el.buyHint.style.display = lowBalance ? 'block' : 'none';
+    if (el.rechargeBalance) el.rechargeBalance.textContent = t;
+    const ok = canBuy();
+    el.btnBuy.disabled = !ok.ok;
+    if (ok.ok) {
+      el.buyHint.style.display = 'none';
+    } else {
+      el.buyHint.textContent = ok.msg;
+      el.buyHint.style.display = 'block';
+    }
   }
 
   function renderTicket() {
@@ -1076,6 +1229,8 @@
   }
 
   function startRound() {
+    ensureToday();
+    state.dailySpent.amount += TICKET_PRICE;
     state.balance  -= TICKET_PRICE;
     state.ticket    = generateTicket();
     state.phase     = 'playing';
@@ -1085,7 +1240,7 @@
     updateBalance();
     renderTicket();
     saveState();
-    el.btnAgain.disabled = (state.balance < TICKET_PRICE);
+    el.btnAgain.disabled = !canBuy().ok;
     requestAnimationFrame(() => requestAnimationFrame(resizeCanvases));
   }
 
@@ -1124,6 +1279,23 @@
     el.statProfit.textContent = (s.profit > 0 ? '+' : '') + fmt(s.profit);
     el.statProfit.className   = 'stat-val ' + (s.profit > 0 ? 'pos' : s.profit < 0 ? 'neg' : '');
 
+    ensureToday();
+    const spent = state.dailySpent.amount;
+    const limit = state.dailyLimit;
+    el.dailySpentVal.textContent = fmt(spent);
+    el.dailyLimitVal.textContent = limit ? fmt(limit) : '없음';
+    if (limit) {
+      const ratio = Math.min(1, spent / limit);
+      el.dailyBar.style.display = 'block';
+      el.dailyBarFill.style.width = (ratio * 100).toFixed(1) + '%';
+      const over = spent >= limit;
+      el.dailyBarFill.classList.toggle('over', over);
+      el.dailySpentVal.classList.toggle('over', over);
+    } else {
+      el.dailyBar.style.display = 'none';
+      el.dailySpentVal.classList.remove('over');
+    }
+
     if (state.history.length === 0) {
       el.historyList.innerHTML = '<div class="history-empty">아직 기록이 없습니다</div>';
     } else {
@@ -1157,9 +1329,55 @@
     if (e.target === el.statsModal) el.statsModal.style.display = 'none';
   });
 
+  el.btnEditLimit.addEventListener('click', () => {
+    const cur = state.dailyLimit ? String(state.dailyLimit) : '';
+    const input = window.prompt('일일 한도 금액(원). 비우면 한도 해제.', cur);
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (trimmed === '') {
+      state.dailyLimit = null;
+    } else {
+      const n = Number(trimmed.replace(/[^0-9]/g,''));
+      if (!isFinite(n) || n <= 0) { alert('0보다 큰 숫자를 입력하세요.'); return; }
+      state.dailyLimit = Math.floor(n);
+    }
+    saveState();
+    renderStats();
+    updateBalance();
+  });
+
+  /* 충전 */
+  function recharge(amt) {
+    state.balance += amt;
+    saveState();
+    updateBalance();
+  }
+  el.btnRecharge.addEventListener('click', () => {
+    el.rechargeBalance.textContent = fmt(state.balance);
+    el.rechargeModal.style.display = 'flex';
+  });
+  el.btnRechargeClose.addEventListener('click', () => {
+    el.rechargeModal.style.display = 'none';
+  });
+  el.rechargeModal.addEventListener('click', (e) => {
+    if (e.target === el.rechargeModal) el.rechargeModal.style.display = 'none';
+  });
+  el.rechargeModal.querySelectorAll('.recharge-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const amt = Number(btn.getAttribute('data-amt'));
+      if (!isFinite(amt) || amt <= 0) return;
+      recharge(amt);
+    });
+  });
+
   el.btnBuy.addEventListener('click', () => {
+    const ok = canBuy();
+    if (!ok.ok) {
+      el.buyHint.textContent = ok.msg;
+      el.buyHint.style.display = 'block';
+      return;
+    }
     el.buyHint.style.display = 'none';
-    if (state.balance < 1000) { el.buyHint.style.display='block'; return; }
     el.startOverlay.style.display = 'none';
     startRound();
   });
@@ -1173,7 +1391,8 @@
 
   el.btnAgain.addEventListener('click', () => {
     el.resultModal.style.display = 'none';
-    if (state.balance < 1000) {
+    if (!canBuy().ok) {
+      updateBalance();
       el.startOverlay.style.display = 'flex';
       state.phase = 'idle';
       return;
