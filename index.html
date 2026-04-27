@@ -62,6 +62,102 @@
       user-select: none;
     }
     .hud-audio input { accent-color: var(--ink); }
+    .hud-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hud-stats-btn {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      color: var(--ink);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .hud-stats-btn:hover { background: var(--soft); }
+
+    /* 통계 모달 */
+    .stats-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px 22px;
+      width: 100%;
+      max-width: 360px;
+      animation: popIn 0.25s ease;
+      max-height: 86vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .stats-card .modal-title {
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .stat {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat-label {
+      font-size: 0.68rem;
+      color: var(--sub);
+      margin-bottom: 4px;
+    }
+    .stat-val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+    .stat-val.pos { color: #1b8a3a; }
+    .stat-val.neg { color: #c0392b; }
+    .history-section { margin-bottom: 16px; min-height: 0; display: flex; flex-direction: column; }
+    .history-label {
+      font-size: 0.72rem;
+      color: var(--sub);
+      margin-bottom: 6px;
+    }
+    .history-list {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow-y: auto;
+      max-height: 180px;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-serial {
+      font-family: monospace;
+      font-size: 0.7rem;
+      color: var(--sub);
+    }
+    .history-result.win  { color: #1b8a3a; font-weight: 700; }
+    .history-result.lose { color: var(--sub); }
+    .history-empty {
+      padding: 20px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--sub);
+    }
+    .stats-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
 
     /* 티켓 */
     .ticket-wrap { width: 100%; max-width: 400px; }
@@ -455,10 +551,13 @@
       <span>잔액</span>
       <strong id="hudBalance">10,000원</strong>
     </div>
-    <label class="hud-audio">
-      <input type="checkbox" id="audioToggle" checked />
-      소리
-    </label>
+    <div class="hud-right">
+      <button id="btnStats" class="hud-stats-btn" type="button">통계</button>
+      <label class="hud-audio">
+        <input type="checkbox" id="audioToggle" checked />
+        소리
+      </label>
+    </div>
   </header>
 
   <!-- 복권 -->
@@ -533,6 +632,29 @@
   </div>
 </div>
 
+<!-- 통계 모달 -->
+<div id="statsModal" class="modal-backdrop" style="display:none;">
+  <div class="stats-card">
+    <div class="modal-title">통계</div>
+    <div class="stats-grid">
+      <div class="stat"><div class="stat-label">총 구매</div><div id="statCount" class="stat-val">0</div></div>
+      <div class="stat"><div class="stat-label">당첨률</div><div id="statRate" class="stat-val">0%</div></div>
+      <div class="stat"><div class="stat-label">총 사용액</div><div id="statCost" class="stat-val">0원</div></div>
+      <div class="stat"><div class="stat-label">총 당첨금</div><div id="statWin" class="stat-val">0원</div></div>
+      <div class="stat"><div class="stat-label">손익</div><div id="statProfit" class="stat-val">0원</div></div>
+      <div class="stat"><div class="stat-label">최고 당첨</div><div id="statMax" class="stat-val">0원</div></div>
+    </div>
+    <div class="history-section">
+      <div class="history-label">최근 기록 (최대 100개)</div>
+      <div id="historyList" class="history-list"></div>
+    </div>
+    <div class="stats-actions">
+      <button id="btnResetStats" class="btn-reveal" type="button">기록 초기화</button>
+      <button id="btnStatsClose" class="btn-again" type="button" style="opacity:1;pointer-events:auto;">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 결과 모달 -->
 <div id="resultModal" class="modal-backdrop" style="display:none;">
   <div class="modal-card">
@@ -546,6 +668,9 @@
 <script>
 (function () {
   const KO = ['','일','이','삼','사','오','육','칠','팔','구','십'];
+  const STORAGE_KEY = 'spitto1000_v1';
+  const TICKET_PRICE = 1000;
+  const HISTORY_MAX = 100;
 
   const state = {
     balance: 10000,
@@ -556,8 +681,27 @@
     lastProgressCheck: 0,
     brush: 38,
     audio: true,
+    history: [],
     _lastTs: 0, _lastCX: 0, _lastCY: 0,
   };
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (typeof data.balance === 'number' && isFinite(data.balance)) state.balance = data.balance;
+      if (Array.isArray(data.history)) state.history = data.history.slice(0, HISTORY_MAX);
+    } catch (e) {}
+  }
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        balance: state.balance,
+        history: state.history,
+      }));
+    } catch (e) {}
+  }
 
   const el = {
     startOverlay:  document.getElementById('startOverlay'),
@@ -584,6 +728,17 @@
     brushSize:     document.getElementById('brushSize'),
     brushVal:      document.getElementById('brushVal'),
     scratchCursor: document.getElementById('scratchCursor'),
+    btnStats:      document.getElementById('btnStats'),
+    statsModal:    document.getElementById('statsModal'),
+    btnStatsClose: document.getElementById('btnStatsClose'),
+    btnResetStats: document.getElementById('btnResetStats'),
+    historyList:   document.getElementById('historyList'),
+    statCount:     document.getElementById('statCount'),
+    statRate:      document.getElementById('statRate'),
+    statCost:      document.getElementById('statCost'),
+    statWin:       document.getElementById('statWin'),
+    statProfit:    document.getElementById('statProfit'),
+    statMax:       document.getElementById('statMax'),
   };
 
   /* 오디오 */
@@ -714,7 +869,9 @@
     const t = fmt(state.balance);
     el.startBalance.textContent = t;
     el.hudBalance.textContent   = t;
-    el.btnBuy.disabled = state.balance < 1000;
+    const lowBalance = state.balance < TICKET_PRICE;
+    el.btnBuy.disabled = lowBalance;
+    el.buyHint.style.display = lowBalance ? 'block' : 'none';
   }
 
   function renderTicket() {
@@ -831,6 +988,15 @@
     const t = state.ticket;
     if (t.isWin) { state.balance += t.winAmount; updateBalance(); }
 
+    state.history.unshift({
+      ts: Date.now(),
+      serial: t.serial,
+      cost: TICKET_PRICE,
+      win: t.winAmount,
+    });
+    if (state.history.length > HISTORY_MAX) state.history.length = HISTORY_MAX;
+    saveState();
+
     el.confettiHost.innerHTML = '';
 
     if (t.isWin) {
@@ -910,7 +1076,7 @@
   }
 
   function startRound() {
-    state.balance  -= 1000;
+    state.balance  -= TICKET_PRICE;
     state.ticket    = generateTicket();
     state.phase     = 'playing';
     state.revealed  = false;
@@ -918,9 +1084,78 @@
     setCursorNone();
     updateBalance();
     renderTicket();
-    el.btnAgain.disabled = (state.balance < 1000);
+    saveState();
+    el.btnAgain.disabled = (state.balance < TICKET_PRICE);
     requestAnimationFrame(() => requestAnimationFrame(resizeCanvases));
   }
+
+  /* 통계 */
+  function computeStats() {
+    const h = state.history;
+    let totalCost = 0, totalWin = 0, winCount = 0, maxWin = 0;
+    for (const e of h) {
+      totalCost += e.cost;
+      totalWin  += e.win;
+      if (e.win > 0) { winCount++; if (e.win > maxWin) maxWin = e.win; }
+    }
+    return {
+      count: h.length,
+      totalCost, totalWin,
+      profit: totalWin - totalCost,
+      rate: h.length ? (winCount / h.length) * 100 : 0,
+      maxWin,
+    };
+  }
+
+  function formatTs(ts) {
+    const d = new Date(ts);
+    const pad = n => String(n).padStart(2,'0');
+    return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function renderStats() {
+    const s = computeStats();
+    el.statCount.textContent = s.count.toLocaleString('ko-KR');
+    el.statRate.textContent  = s.rate.toFixed(1) + '%';
+    el.statCost.textContent  = fmt(s.totalCost);
+    el.statWin.textContent   = fmt(s.totalWin);
+    el.statMax.textContent   = fmt(s.maxWin);
+
+    el.statProfit.textContent = (s.profit > 0 ? '+' : '') + fmt(s.profit);
+    el.statProfit.className   = 'stat-val ' + (s.profit > 0 ? 'pos' : s.profit < 0 ? 'neg' : '');
+
+    if (state.history.length === 0) {
+      el.historyList.innerHTML = '<div class="history-empty">아직 기록이 없습니다</div>';
+    } else {
+      el.historyList.innerHTML = state.history.map(e => {
+        const win = e.win > 0;
+        const right = win
+          ? `<span class="history-result win">+${fmt(e.win)}</span>`
+          : `<span class="history-result lose">꽝</span>`;
+        return `<div class="history-item">
+          <span class="history-serial">${formatTs(e.ts)} · ${e.serial}</span>
+          ${right}
+        </div>`;
+      }).join('');
+    }
+  }
+
+  el.btnStats.addEventListener('click', () => {
+    renderStats();
+    el.statsModal.style.display = 'flex';
+  });
+  el.btnStatsClose.addEventListener('click', () => {
+    el.statsModal.style.display = 'none';
+  });
+  el.btnResetStats.addEventListener('click', () => {
+    if (!confirm('기록을 모두 삭제하시겠습니까? 잔액은 유지됩니다.')) return;
+    state.history = [];
+    saveState();
+    renderStats();
+  });
+  el.statsModal.addEventListener('click', (e) => {
+    if (e.target === el.statsModal) el.statsModal.style.display = 'none';
+  });
 
   el.btnBuy.addEventListener('click', () => {
     el.buyHint.style.display = 'none';
@@ -1006,6 +1241,7 @@
   }`;
   document.head.appendChild(styleSheet);
 
+  loadState();
   updateBalance();
 })();
 </script>
