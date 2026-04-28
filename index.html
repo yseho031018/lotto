@@ -981,8 +981,9 @@
     {label:'오억원',   amount:500000000},
   ];
   const MAX_DUP = 2;
+  const REQUIRED_PRIZE_IDXS = [4, 5];
 
-  const DECOY_WEIGHTS = [30, 30, 20, 15, 4, 1];
+  const DECOY_WEIGHTS = [40, 35, 15, 8, 1.5, 0.5];
   function weightedPick(weights) {
     const total = weights.reduce((s,w)=>s+w, 0);
     let r = Math.random() * total;
@@ -992,25 +993,24 @@
     }
     return weights.length - 1;
   }
-  function decoy() { return PRIZES[weightedPick(DECOY_WEIGHTS)]; }
-
-  function matchPrize() {
-    const r = Math.random();
-    if (r < 0.00005) return PRIZES[5];
-    if (r < 0.00035) return PRIZES[4];
-    if (r < 0.015)   return PRIZES[3];
-    if (r < 0.115)   return PRIZES[2];
-    if (r < 0.415)   return PRIZES[1];
-    return PRIZES[0];
-  }
-
-  function pickPrizeUnique(isMatch, counts) {
-    for (let i = 0; i < 25; i++) {
-      const p = isMatch ? matchPrize() : decoy();
+  function pickDecoyUnique(counts) {
+    for (let i = 0; i < 30; i++) {
+      const p = PRIZES[weightedPick(DECOY_WEIGHTS)];
       if ((counts[p.amount] || 0) < MAX_DUP) return p;
     }
     const avail = PRIZES.filter(p => (counts[p.amount] || 0) < MAX_DUP);
     return avail[Math.floor(Math.random()*avail.length)] || PRIZES[0];
+  }
+
+  function rollWinTier() {
+    const r = Math.random();
+    if (r < 0.50)      return -1;
+    if (r < 0.78)      return 0;
+    if (r < 0.94)      return 1;
+    if (r < 0.985)     return 2;
+    if (r < 0.99905)   return 3;
+    if (r < 0.99995)   return 4;
+    return 5;
   }
 
   function shuffle(arr) {
@@ -1022,16 +1022,50 @@
   }
 
   function generateTicket() {
-    const lucky = Math.floor(Math.random()*10)+1;
-    const pool  = shuffle([1,2,3,4,5,6,7,8,9,10]);
-    const mines = pool.slice(0,6);
+    const lucky  = Math.floor(Math.random()*10)+1;
+    const winIdx = rollWinTier();
+
+    const others = shuffle([1,2,3,4,5,6,7,8,9,10].filter(n => n !== lucky));
+    let cellNumbers;
+    if (winIdx >= 0) {
+      cellNumbers = others.slice(0,5);
+      const winPos = Math.floor(Math.random()*6);
+      cellNumbers.splice(winPos, 0, lucky);
+    } else {
+      cellNumbers = others.slice(0,6);
+    }
+
+    const cellPrizes = new Array(6);
     const counts = {};
-    const cells = mines.map(n => {
-      const match = n === lucky;
-      const prize = pickPrizeUnique(match, counts);
-      counts[prize.amount] = (counts[prize.amount] || 0) + 1;
-      return { num:n, ko:KO[n], match, prize };
-    });
+    if (winIdx >= 0) {
+      const winPos = cellNumbers.indexOf(lucky);
+      cellPrizes[winPos] = PRIZES[winIdx];
+      counts[PRIZES[winIdx].amount] = 1;
+    }
+
+    const remaining = [];
+    for (let i = 0; i < 6; i++) if (cellPrizes[i] === undefined) remaining.push(i);
+    shuffle(remaining);
+
+    for (const reqIdx of REQUIRED_PRIZE_IDXS) {
+      const reqAmt = PRIZES[reqIdx].amount;
+      if ((counts[reqAmt] || 0) >= 1) continue;
+      const slot = remaining.shift();
+      cellPrizes[slot] = PRIZES[reqIdx];
+      counts[reqAmt] = 1;
+    }
+
+    for (const slot of remaining) {
+      const p = pickDecoyUnique(counts);
+      cellPrizes[slot] = p;
+      counts[p.amount] = (counts[p.amount] || 0) + 1;
+    }
+
+    const cells = cellNumbers.map((num, i) => ({
+      num, ko: KO[num],
+      match: num === lucky,
+      prize: cellPrizes[i],
+    }));
     const winAmount = cells.filter(c=>c.match).reduce((m,c)=>Math.max(m,c.prize.amount),0);
     return { lucky, ko:KO[lucky], cells, winAmount, isWin:winAmount>0, serial:serial() };
   }
