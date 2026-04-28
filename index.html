@@ -972,24 +972,45 @@
     return [5,4,3].map(l => String(Math.floor(Math.random()*Math.pow(10,l))).padStart(l,'0')).join('-');
   }
 
-  const DECOYS = [
-    {label:'일만원', amount:10000},
-    {label:'오만원', amount:50000},
-    {label:'십만원', amount:100000},
-    {label:'오십만원', amount:500000},
-    {label:'백만원', amount:1000000},
+  const PRIZES = [
+    {label:'일천원',   amount:1000},
+    {label:'오천원',   amount:5000},
+    {label:'일만원',   amount:10000},
+    {label:'오만원',   amount:50000},
+    {label:'이천만원', amount:20000000},
+    {label:'오억원',   amount:500000000},
   ];
-  function decoy() { return DECOYS[Math.floor(Math.random()*DECOYS.length)]; }
+  const MAX_DUP = 2;
+
+  const DECOY_WEIGHTS = [30, 30, 20, 15, 4, 1];
+  function weightedPick(weights) {
+    const total = weights.reduce((s,w)=>s+w, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < weights.length; i++) {
+      if (r < weights[i]) return i;
+      r -= weights[i];
+    }
+    return weights.length - 1;
+  }
+  function decoy() { return PRIZES[weightedPick(DECOY_WEIGHTS)]; }
 
   function matchPrize() {
     const r = Math.random();
-    if (r < 0.00008)  return {label:'오억원',   amount:500000000};
-    if (r < 0.00035)  return {label:'오천만원', amount:50000000};
-    if (r < 0.002)    return {label:'천만원',   amount:10000000};
-    if (r < 0.02)     return {label:'백만원',   amount:1000000};
-    if (r < 0.12)     return {label:'십만원',   amount:100000};
-    if (r < 0.45)     return {label:'오만원',   amount:50000};
-    return {label:'일만원', amount:10000};
+    if (r < 0.00005) return PRIZES[5];
+    if (r < 0.00035) return PRIZES[4];
+    if (r < 0.015)   return PRIZES[3];
+    if (r < 0.115)   return PRIZES[2];
+    if (r < 0.415)   return PRIZES[1];
+    return PRIZES[0];
+  }
+
+  function pickPrizeUnique(isMatch, counts) {
+    for (let i = 0; i < 25; i++) {
+      const p = isMatch ? matchPrize() : decoy();
+      if ((counts[p.amount] || 0) < MAX_DUP) return p;
+    }
+    const avail = PRIZES.filter(p => (counts[p.amount] || 0) < MAX_DUP);
+    return avail[Math.floor(Math.random()*avail.length)] || PRIZES[0];
   }
 
   function shuffle(arr) {
@@ -1004,9 +1025,12 @@
     const lucky = Math.floor(Math.random()*10)+1;
     const pool  = shuffle([1,2,3,4,5,6,7,8,9,10]);
     const mines = pool.slice(0,6);
+    const counts = {};
     const cells = mines.map(n => {
       const match = n === lucky;
-      return { num:n, ko:KO[n], match, prize: match ? matchPrize() : decoy() };
+      const prize = pickPrizeUnique(match, counts);
+      counts[prize.amount] = (counts[prize.amount] || 0) + 1;
+      return { num:n, ko:KO[n], match, prize };
     });
     const winAmount = cells.filter(c=>c.match).reduce((m,c)=>Math.max(m,c.prize.amount),0);
     return { lucky, ko:KO[lucky], cells, winAmount, isWin:winAmount>0, serial:serial() };
